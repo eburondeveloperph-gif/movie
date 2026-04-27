@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Movie Studio Pro - 2026 Edition</title>
+    <meta name="referrer" content="origin" /> <!-- Required for VidSrc Ad-Free Plays -->
+    <title>Movie Studio Pro - Ad-Free Premium</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -39,20 +40,20 @@
             const [list, setList] = useState([]);
             const [genres, setGenres] = useState([]);
             const [selectedItem, setSelectedItem] = useState(null);
-            const[translations, setTranslations] = useState([]);
+            const [translations, setTranslations] = useState([]);
             const [page, setPage] = useState(1);
-            const[loading, setLoading] = useState(false);
+            const [loading, setLoading] = useState(false);
             const scrollRef = useRef(null);
             
             // Filter States
             const [mediaType, setMediaType] = useState("movie"); 
-            const[category, setCategory] = useState("popular");
-            const [genreId, setGenreId] = useState("");
+            const [category, setCategory] = useState("popular");
+            const[genreId, setGenreId] = useState("");
             const [year, setYear] = useState("");
-            const [searchQuery, setSearchQuery] = useState("");
+            const[searchQuery, setSearchQuery] = useState("");
             
-            // Server State
-            const [server, setServer] = useState("vidsrc.to");
+            // Server State (Updated to officially supported VidSrc domains)
+            const [server, setServer] = useState("vidsrc.net");
 
             const headers = { 'Authorization': TMDB_AUTH, 'accept': 'application/json' };
             // Generates years dynamically from 2026 down to 1970
@@ -107,7 +108,7 @@
                 try {
                     const res = await fetch(url, { headers });
                     const data = await res.json();
-                    setList(prev => append ? [...prev, ...data.results] : data.results);
+                    setList(prev => append ?[...prev, ...data.results] : data.results);
                 } catch (err) { console.error(err); }
                 finally { setLoading(false); }
             };
@@ -142,14 +143,16 @@
                 setLoading(false);
             };
 
+            // OFFICIAL VIDSRC EMBED GENERATOR (Updated with Ad-Free Domains)
             const getEmbedUrl = (item) => {
                 if (!item) return "";
                 const isTv = item.first_air_date || mediaType === 'tv';
                 switch (server) {
-                    case "vidsrc.to": return isTv ? `https://vidsrc.to/embed/tv/${item.id}/1/1` : `https://vidsrc.to/embed/movie/${item.id}`;
-                    case "vidsrc.me": return isTv ? `https://vidsrc.me/embed/tv?tmdb=${item.id}&season=1&episode=1` : `https://vidsrc.me/embed/movie?tmdb=${item.id}`;
-                    case "vidlink.pro": return isTv ? `https://vidlink.pro/tv/${item.id}/1/1` : `https://vidlink.pro/movie/${item.id}`;
-                    default: return isTv ? `https://vidsrc.to/embed/tv/${item.id}/1/1` : `https://vidsrc.to/embed/movie/${item.id}`;
+                    case "vidsrc.net": return isTv ? `https://vidsrc.net/embed/tv?tmdb=${item.id}&season=1&episode=1` : `https://vidsrc.net/embed/movie?tmdb=${item.id}`;
+                    case "vidsrc.in": return isTv ? `https://vidsrc.in/embed/tv?tmdb=${item.id}&season=1&episode=1` : `https://vidsrc.in/embed/movie?tmdb=${item.id}`;
+                    case "vidsrc.pm": return isTv ? `https://vidsrc.pm/embed/tv?tmdb=${item.id}&season=1&episode=1` : `https://vidsrc.pm/embed/movie?tmdb=${item.id}`;
+                    case "vidsrc.xyz": return isTv ? `https://vidsrc.xyz/embed/tv?tmdb=${item.id}&season=1&episode=1` : `https://vidsrc.xyz/embed/movie?tmdb=${item.id}`;
+                    default: return isTv ? `https://vidsrc.net/embed/tv?tmdb=${item.id}&season=1&episode=1` : `https://vidsrc.net/embed/movie?tmdb=${item.id}`;
                 }
             };
 
@@ -159,7 +162,7 @@
                         <h1 className="text-3xl font-bold flex items-center gap-2">
                             <span>🎥</span> Movie Studio
                         </h1>
-                        <p className="text-gray-400 mt-2">Browse Most Popular and New Released titles with real-time TMDB Auto-Updates.</p>
+                        <p className="text-gray-400 mt-2">Browse Most Popular and New Released titles with real-time TMDB Auto-Updates. Ad-Free streams active.</p>
                     </header>
 
                     {/* TOP DUAL-CARD SECTION */}
@@ -312,20 +315,23 @@
                                         onChange={(e) => setServer(e.target.value)}
                                         className="bg-[#161a23] border border-[#2d313a] text-green-400 font-bold text-xs rounded px-2 py-1.5 outline-none custom-bg pr-6"
                                     >
-                                        <option value="vidsrc.to">Server 1 (VidSrc.to)</option>
-                                        <option value="vidsrc.me">Server 2 (VidSrc.me)</option>
-                                        <option value="vidlink.pro">Server 3 (VidLink)</option>
+                                        <option value="vidsrc.net">Server 1 (vidsrc.net)</option>
+                                        <option value="vidsrc.in">Server 2 (vidsrc.in)</option>
+                                        <option value="vidsrc.pm">Server 3 (vidsrc.pm)</option>
+                                        <option value="vidsrc.xyz">Server 4 (vidsrc.xyz)</option>
                                     </select>
                                     
                                     <button onClick={() => setSelectedItem(null)} className="text-gray-500 hover:text-red-400 text-xs font-bold transition ml-2">CLOSE ✕</button>
                                 </div>
                              </div>
                              <div className="aspect-video w-full bg-black relative">
+                                {/* Added referrerPolicy="origin" as required by VidSrc for Ad-Free plays */}
                                 <iframe 
                                     src={getEmbedUrl(selectedItem)}
                                     className="w-full h-full relative z-10"
                                     allowFullScreen
                                     frameBorder="0"
+                                    referrerPolicy="origin"
                                 ></iframe>
                              </div>
                         </div>
