@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screen Recorder & Mockup Generator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ----- RECORDER SECTION ----- */
+        #recorderSection, #mockupSection {
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            max-width: 1100px;
+            width: 100%;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        h2 { margin: 0; color: #4facfe; }
+        
+        .instructions { font-size: 13px; color: #ccc; background: #2a2a2a; padding: 10px; border-radius: 6px; text-align: left; }
+        .instructions b { color: #4facfe; }
+
+        .url-bar { display: flex; gap: 10px; background: #2a2a2a; padding: 10px; border-radius: 6px; }
+        .url-bar input[type="url"] { flex: 1; padding: 10px; border: 1px solid #555; border-radius: 4px; background: #222; color: white; transition: 0.3s; }
+        .url-bar input[type="url"]:read-only { color: #888; background: #1a1a1a; cursor: not-allowed; }
+        .url-bar button { color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        #editUrlBtn { background: #e67e22; }
+        #editUrlBtn:hover { background: #d35400; }
+        #loadUrlBtn { background: #6c757d; }
+        #loadUrlBtn:hover { background: #5a6268; }
+        
+        .iframe-container { width: 100%; height: 500px; border: 3px solid #4facfe; border-radius: 6px; background: #ffffff; overflow: hidden; position: relative; }
+        iframe { width: 100%; height: 100%; border: none; }
+
+        .controls { display: flex; align-items: center; justify-content: center; gap: 15px; background: #2a2a2a; padding: 15px; border-radius: 6px; }
+        button { padding: 10px 20px; font-size: 15px; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; transition: 0.2s; }
+        #startBtn { background: #28a745; color: white; }
+        #stopBtn { background: #dc3545; color: white; }
+        button:disabled { background: #444 !important; color: #888 !important; cursor: not-allowed; }
+        
+        .recording-indicator { color: #ff4d4d; display: none; animation: blink 1s infinite; font-weight: bold;}
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* ----- MOCKUP SECTION ----- */
+        #mockupSection { display: none; background: #181818; }
+        
+        .view-toggles { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+        .view-toggles button { background: #333; color: white; }
+        .view-toggles button.active { background: #4facfe; color: white; }
+
+        .mockup-toolbar { display: flex; justify-content: center; gap: 15px; margin-bottom: 15px; background: #222; padding: 10px; border-radius: 6px; }
+        
+        .downloads { display: flex; justify-content: center; gap: 15px; margin-top: 20px; }
+        .download-btn { text-decoration: none; padding: 10px 20px; background: #e67e22; color: white; border-radius: 5px; font-weight: bold; }
+        
+        /* Mobile Device CSS */
+        #mobileMockupView { display: flex; flex-direction: column; align-items: center; }
+        .mobile-device {
+            width: 320px;
+            height: 650px;
+            background: #000;
+            border: 14px solid #333;
+            border-radius: 40px;
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        /* Mobile Notch */
+        .mobile-device::before {
+            content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+            width: 120px; height: 25px; background: #333;
+            border-bottom-left-radius: 15px; border-bottom-right-radius: 15px; z-index: 10;
+        }
+        .mobile-device video {
+            width: 100%;
+            height: 100%;
+            background: #112; 
+            object-fit: contain; 
+            transition: object-fit 0.3s;
+        }
+        .mobile-device video.fill-portrait { object-fit: cover; }
+
+        /* Desktop Device CSS */
+        #desktopMockupView { display: none; flex-direction: column; align-items: center; }
+        .desktop-device {
+            width: 850px;
+            height: 480px;
+            background: #000;
+            border: 16px solid #ccc;
+            border-bottom-width: 25px;
+            border-radius: 12px 12px 0 0;
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+            overflow: hidden; 
+        }
+        /* Monitor Stand */
+        .desktop-stand {
+            width: 150px; height: 30px; background: #999;
+            border-radius: 0 0 10px 10px; margin: 0 auto;
+        }
+        
+        /* Canva-style adjustable video wrapper */
+        .desktop-video-wrapper {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            resize: both;
+            overflow: hidden;
+            cursor: grab;
+            border: 2px dashed transparent;
+        }
+        .desktop-video-wrapper:hover { border-color: #4facfe; }
+        .desktop-video-wrapper:active { cursor: grabbing; }
+        .desktop-video-wrapper video {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            pointer-events: none; 
+        }
+
+    </style>
+</head>
+<body>
+
+<!-- 1. RECORDER SECTION -->
+<div id="recorderSection" class="container">
+    <h2>💻 Isolated Target Recorder</h2>
+    <div class="instructions">
+        1. Click Start Recording. You MUST select <b>"This Tab"</b> and check <b>"Share Tab Audio"</b>.<br>
+        2. Hit <b>Stop</b> when you're done, and it will immediately generate your mockups.
+    </div>
+
+    <!-- Hardcoded URL with Edit Logic -->
+    <div class="url-bar">
+        <input type="url" id="urlInput" value="https://movie.eburon.ai/" readonly>
+        <button id="editUrlBtn">✏️ Edit</button>
+        <button id="loadUrlBtn">🔄 Load Website Inside</button>
+    </div>
+
+    <div class="iframe-container" id="captureArea">
+        <iframe id="targetFrame" src="https://movie.eburon.ai/" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+    </div>
+
+    <div class="controls">
+        <button id="startBtn">▶ Start Recording</button>
+        <button id="stopBtn" disabled>⏹ Stop Recording</button>
+        <span id="recordingStatus" class="recording-indicator">🔴 RECORDING...</span>
+    </div>
+</div>
+
+<!-- 2. MOCKUP PREVIEW SECTION -->
+<div id="mockupSection" class="container">
+    <h2>✨ Post-Recording Mockups</h2>
+    
+    <div class="view-toggles">
+        <button id="showMobileBtn" class="active">📱 Mobile View</button>
+        <button id="showDesktopBtn">💻 Desktop View</button>
+        <button id="backBtn" style="background: #666;">🔙 Back to Recorder</button>
+    </div>
+
+    <!-- Mobile View Tab -->
+    <div id="mobileMockupView">
+        <div class="mockup-toolbar">
+            <button id="fitMobileBtn" style="background: #17a2b8;">Fit (Landscape Boxed)</button>
+            <button id="fillMobileBtn" style="background: #6c757d;">Fill (Full Portrait)</button>
+        </div>
+        <div class="mobile-device">
+            <video id="mobileVideo" autoplay loop muted></video>
+        </div>
+    </div>
+
+    <!-- Desktop View Tab -->
+    <div id="desktopMockupView">
+        <div class="mockup-toolbar">
+            <span style="font-size: 14px; color: #ccc; align-content: center;">🖱️ Drag to move video. Drag bottom-right corner to resize (Canva style).</span>
+            <button id="resetDesktopBtn" style="background: #17a2b8;">Reset Size & Position</button>
+        </div>
+        <div class="desktop-device">
+            <div id="desktopVideoWrapper" class="desktop-video-wrapper">
+                <video id="desktopVideo" autoplay loop muted></video>
+            </div>
+        </div>
+        <div class="desktop-stand"></div>
+    </div>
+
+    <!-- Final Video Downloads -->
+    <div class="downloads">
+        <a id="downloadWebm" class="download-btn">⬇ Download Raw .WebM</a>
+        <a id="downloadMp4" class="download-btn">⬇ Download Raw .MP4</a>
+    </div>
+</div>
+
+<script>
+    // --- VARIABLES ---
+    let mediaRecorder;
+    let recordedChunks =[];
+    let stream;
+    let videoUrl = "";
+
+    // Elements
+    const urlInput = document.getElementById('urlInput');
+    const editUrlBtn = document.getElementById('editUrlBtn');
+    const loadUrlBtn = document.getElementById('loadUrlBtn');
+    const targetFrame = document.getElementById('targetFrame');
+    
+    const recorderSection = document.getElementById('recorderSection');
+    const mockupSection = document.getElementById('mockupSection');
+    const captureArea = document.getElementById('captureArea');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    
+    const mobileVideo = document.getElementById('mobileVideo');
+    const desktopVideo = document.getElementById('desktopVideo');
+    const downloadWebm = document.getElementById('downloadWebm');
+    const downloadMp4 = document.getElementById('downloadMp4');
+
+    // --- URL BAR LOGIC ---
+    // Edit Button Toggle
+    editUrlBtn.addEventListener('click', () => {
+        if (urlInput.hasAttribute('readonly')) {
+            // Unlock
+            urlInput.removeAttribute('readonly');
+            urlInput.focus();
+            editUrlBtn.innerHTML = '🔒 Lock';
+            editUrlBtn.style.background = '#28a745';
+        } else {
+            // Lock
+            urlInput.setAttribute('readonly', 'true');
+            editUrlBtn.innerHTML = '✏️ Edit';
+            editUrlBtn.style.background = '#e67e22';
+        }
+    });
+
+    // Load Website Button
+    loadUrlBtn.addEventListener('click', () => {
+        let url = urlInput.value.trim();
+        if (url && !url.startsWith('http')) url = 'https://' + url;
+        targetFrame.src = url || 'about:blank';
+    });
+
+    // --- RECORDER LOGIC ---
+    startBtn.addEventListener('click', async () => {
+        try {
+            stream = await navigator.mediaDevices.getDisplayMedia({
+                video: { displaySurface: "browser" },
+                audio: true,
+                preferCurrentTab: true 
+            });
+
+            // Crop to iFrame if browser supports it
+            try {
+                if (window.CropTarget) {
+                    const cropTarget = await CropTarget.fromElement(captureArea);
+                    const[videoTrack] = stream.getVideoTracks();
+                    await videoTrack.cropTo(cropTarget);
+                }
+            } catch (e) { console.warn("Cropping not supported", e); }
+
+            let options = { mimeType: 'video/webm; codecs=h264' };
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                options = { mimeType: 'video/webm' };
+            }
+
+            mediaRecorder = new MediaRecorder(stream, options);
+            recordedChunks =[];
+
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: options.mimeType || 'video/webm' });
+                videoUrl = URL.createObjectURL(blob);
+                
+                // Set video sources for mockups
+                mobileVideo.src = videoUrl;
+                desktopVideo.src = videoUrl;
+                
+                // Set Download Links
+                downloadWebm.href = videoUrl; downloadWebm.download = `rec_${Date.now()}.webm`;
+                downloadMp4.href = videoUrl; downloadMp4.download = `rec_${Date.now()}.mp4`;
+
+                // Switch UI
+                recorderSection.style.display = 'none';
+                mockupSection.style.display = 'flex';
+                resetUI();
+            };
+
+            mediaRecorder.start();
+            startBtn.disabled = true; stopBtn.disabled = false;
+            document.getElementById('recordingStatus').style.display = 'inline-block';
+
+            stream.getVideoTracks()[0].onended = stopRecording;
+        } catch (err) {
+            console.error(err);
+        }
+    });
+
+    stopBtn.addEventListener('click', stopRecording);
+    function stopRecording() {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+        if (stream) stream.getTracks().forEach(track => track.stop());
+    }
+
+    function resetUI() {
+        startBtn.disabled = false; stopBtn.disabled = true;
+        document.getElementById('recordingStatus').style.display = 'none';
+    }
+
+    // --- MOCKUP UI LOGIC ---
+
+    // 1. Tabbing logic
+    document.getElementById('showMobileBtn').addEventListener('click', (e) => {
+        document.getElementById('mobileMockupView').style.display = 'flex';
+        document.getElementById('desktopMockupView').style.display = 'none';
+        e.target.classList.add('active');
+        document.getElementById('showDesktopBtn').classList.remove('active');
+    });
+
+    document.getElementById('showDesktopBtn').addEventListener('click', (e) => {
+        document.getElementById('mobileMockupView').style.display = 'none';
+        document.getElementById('desktopMockupView').style.display = 'flex';
+        e.target.classList.add('active');
+        document.getElementById('showMobileBtn').classList.remove('active');
+    });
+
+    document.getElementById('backBtn').addEventListener('click', () => {
+        mockupSection.style.display = 'none';
+        recorderSection.style.display = 'flex';
+        mobileVideo.pause(); desktopVideo.pause();
+    });
+
+    // 2. Mobile Mockup Controls
+    document.getElementById('fitMobileBtn').addEventListener('click', (e) => {
+        mobileVideo.classList.remove('fill-portrait');
+        e.target.style.background = '#17a2b8';
+        document.getElementById('fillMobileBtn').style.background = '#6c757d';
+    });
+
+    document.getElementById('fillMobileBtn').addEventListener('click', (e) => {
+        mobileVideo.classList.add('fill-portrait');
+        e.target.style.background = '#17a2b8';
+        document.getElementById('fitMobileBtn').style.background = '#6c757d';
+    });
+
+    // 3. Desktop Mockup Canva-Style Drag Logic
+    const wrapper = document.getElementById('desktopVideoWrapper');
+    let isDragging = false;
+    let startX, startY, initialLeft, initialTop;
+
+    wrapper.addEventListener('mousedown', (e) => {
+        const rect = wrapper.getBoundingClientRect();
+        const isClickingResizeHandle = (e.clientX > rect.right - 25 && e.clientY > rect.bottom - 25);
+        if (isClickingResizeHandle) return;
+
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        initialLeft = wrapper.offsetLeft;
+        initialTop = wrapper.offsetTop;
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        wrapper.style.left = `${initialLeft + dx}px`;
+        wrapper.style.top = `${initialTop + dy}px`;
+    });
+
+    document.addEventListener('mouseup', () => { isDragging = false; });
+
+    document.getElementById('resetDesktopBtn').addEventListener('click', () => {
+        wrapper.style.left = '0px';
+        wrapper.style.top = '0px';
+        wrapper.style.width = '100%';
+        wrapper.style.height = '100%';
+    });
+</script>
+
+</body>
+</html>
