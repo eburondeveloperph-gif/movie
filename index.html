@@ -78,15 +78,15 @@
 
         function RecapAgentPanel({ selectedItem, itemDetails, hasCloudinaryVideo, cloudinaryPublicId }) {
             const[recapStep, setRecapStep] = React.useState("source");
-            const [recapMode, setRecapMode] = React.useState("scene_clip");
+            const[recapMode, setRecapMode] = React.useState("scene_clip");
             const [targetFormat, setTargetFormat] = React.useState("square");
             const [targetDuration, setTargetDuration] = React.useState(60);
             const [captionPreset, setCaptionPreset] = React.useState("reference_bold");
             const[agentStatus, setAgentStatus] = React.useState("idle");
-            const [agentLog, setAgentLog] = React.useState([]);
+            const[agentLog, setAgentLog] = React.useState([]);
             const [generatedPlan, setGeneratedPlan] = React.useState(null);
             const[renderResult, setRenderResult] = React.useState(null);
-            const [showJson, setShowJson] = React.useState(false);
+            const[showJson, setShowJson] = React.useState(false);
 
             const movieTitle = itemDetails?.title || selectedItem?.title || selectedItem?.name || "Selected Movie";
             const movieYear = (selectedItem?.release_date || selectedItem?.first_air_date || "").split("-")[0];
@@ -113,7 +113,7 @@
             const activeStepIndex = steps.findIndex(step => step.id === recapStep);
 
             const addLog = (message) => {
-                setAgentLog(prev => [
+                setAgentLog(prev =>[
                     ...prev,
                     { time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }), message }
                 ]);
@@ -255,41 +255,19 @@
             const[server, setServer] = useState("vidsrc.net");
             const [subtitleLang, setSubtitleLang] = useState("en");
 
-            const [isIdle, setIsIdle] = useState(false);
-            const idleTimerRef = useRef(null);
+            // Removed custom UI "idle" states. UI now lives cleanly outside the iframe.
             const playerRef = useRef(null);
-            const isHoveringControlsRef = useRef(false);
-
-            const [uploadedCloudinaryIds, setUploadedCloudinaryIds] = useState(() => {
-                try { return JSON.parse(localStorage.getItem('eburonflix_cloudinary_ids')) || {}; } catch { return {}; }
-            });
-            const [isUploading, setIsUploading] = useState(false);
-            const[uploadProgress, setUploadProgress] = useState(0);
-            const [uploadError, setUploadError] = useState(null);
-            const [uploadMode, setUploadMode] = useState('url'); 
             const fileInputRef = useRef(null);
 
+            const[uploadedCloudinaryIds, setUploadedCloudinaryIds] = useState(() => {
+                try { return JSON.parse(localStorage.getItem('eburonflix_cloudinary_ids')) || {}; } catch { return {}; }
+            });
+            const[isUploading, setIsUploading] = useState(false);
+            const[uploadProgress, setUploadProgress] = useState(0);
+            const [uploadError, setUploadError] = useState(null);
+            const[uploadMode, setUploadMode] = useState('url'); 
+
             const headers = { 'Authorization': TMDB_AUTH, 'accept': 'application/json' };
-
-            const resetIdleTimer = useCallback(() => {
-                setIsIdle(false);
-                if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-                if (!isHoveringControlsRef.current) { idleTimerRef.current = setTimeout(() => { setIsIdle(true); }, 5000); }
-            },[]);
-
-            const handleMouseEnterControls = () => { isHoveringControlsRef.current = true; resetIdleTimer(); };
-            const handleMouseLeaveControls = () => { isHoveringControlsRef.current = false; resetIdleTimer(); };
-
-            useEffect(() => {
-                if (selectedItem) {
-                    resetIdleTimer();
-                    ['mousemove', 'touchstart', 'click', 'keydown'].forEach(evt => window.addEventListener(evt, resetIdleTimer));
-                } else { if (idleTimerRef.current) clearTimeout(idleTimerRef.current); }
-                return () => {
-                    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-                    ['mousemove', 'touchstart', 'click', 'keydown'].forEach(evt => window.removeEventListener(evt, resetIdleTimer));
-                };
-            },[selectedItem, resetIdleTimer]);
 
             useEffect(() => {
                 fetch(`${TMDB_BASE}/configuration/languages`, { headers }).then(res => res.json()).then(data => {
@@ -365,56 +343,31 @@
 
             const handleGlobalLanguageSync = (langCode) => { setAppLang(langCode); setSubtitleLang(langCode); };
 
-            // =========================================================
-            // DYNAMIC EMBED URL GENERATOR (SUPPORTING MULTIPLE SERVERS)
-            // =========================================================
             const getEmbedUrl = (item) => {
                 if (!item) return "";
                 const isTv = item.media_type === 'tv' || (!item.media_type && item.first_air_date);
                 const tmdb = item.id;
-                const s = 1; // Defaulting to Season 1
-                const e = 1; // Defaulting to Episode 1
+                const s = 1; 
+                const e = 1; 
 
-                // Switch structure handling various server API formats
                 switch (server) {
-                    case "vidsrc.net":
-                    case "vidsrc.in":
-                    case "vidsrc.pm":
-                    case "vidsrc.xyz":
-                    case "vidsrc.pro":
-                    case "vidsrc.cc":
-                    case "vidsrc.me":
+                    case "vidsrc.net": case "vidsrc.in": case "vidsrc.pm": case "vidsrc.xyz": case "vidsrc.pro": case "vidsrc.cc": case "vidsrc.me":
                         return `https://${server}/embed/${isTv ? 'tv' : 'movie'}?tmdb=${tmdb}${isTv ? `&season=${s}&episode=${e}` : ''}&language=${subtitleLang}&sub=${subtitleLang}`;
                     case "vidsrc.to":
-                        return isTv 
-                            ? `https://vidsrc.to/embed/tv/${tmdb}/${s}/${e}` 
-                            : `https://vidsrc.to/embed/movie/${tmdb}`;
+                        return isTv ? `https://vidsrc.to/embed/tv/${tmdb}/${s}/${e}` : `https://vidsrc.to/embed/movie/${tmdb}`;
                     case "autoembed":
-                        return isTv 
-                            ? `https://player.autoembed.cc/embed/tv/${tmdb}/${s}/${e}` 
-                            : `https://player.autoembed.cc/embed/movie/${tmdb}`;
+                        return isTv ? `https://player.autoembed.cc/embed/tv/${tmdb}/${s}/${e}` : `https://player.autoembed.cc/embed/movie/${tmdb}`;
                     case "smashy":
-                        return isTv 
-                            ? `https://player.smashy.stream/tv/${tmdb}?s=${s}&e=${e}` 
-                            : `https://player.smashy.stream/movie/${tmdb}`;
+                        return isTv ? `https://player.smashy.stream/tv/${tmdb}?s=${s}&e=${e}` : `https://player.smashy.stream/movie/${tmdb}`;
                     case "multiembed":
-                        return isTv 
-                            ? `https://multiembed.mov/directstream.php?video_id=${tmdb}&tmdb=1&s=${s}&e=${e}` 
-                            : `https://multiembed.mov/directstream.php?video_id=${tmdb}&tmdb=1`;
+                        return isTv ? `https://multiembed.mov/directstream.php?video_id=${tmdb}&tmdb=1&s=${s}&e=${e}` : `https://multiembed.mov/directstream.php?video_id=${tmdb}&tmdb=1`;
                     case "moviesapi":
-                        return isTv 
-                            ? `https://moviesapi.club/tv/${tmdb}-${s}-${e}` 
-                            : `https://moviesapi.club/movie/${tmdb}`;
+                        return isTv ? `https://moviesapi.club/tv/${tmdb}-${s}-${e}` : `https://moviesapi.club/movie/${tmdb}`;
                     case "superembed":
-                        return isTv 
-                            ? `https://multiembed.mov/?video_id=${tmdb}&tmdb=1&s=${s}&e=${e}` 
-                            : `https://multiembed.mov/?video_id=${tmdb}&tmdb=1`;
+                        return isTv ? `https://multiembed.mov/?video_id=${tmdb}&tmdb=1&s=${s}&e=${e}` : `https://multiembed.mov/?video_id=${tmdb}&tmdb=1`;
                     case "2embed":
-                        return isTv 
-                            ? `https://www.2embed.cc/embedtv/${tmdb}&s=${s}&e=${e}` 
-                            : `https://www.2embed.cc/embed/${tmdb}`;
+                        return isTv ? `https://www.2embed.cc/embedtv/${tmdb}&s=${s}&e=${e}` : `https://www.2embed.cc/embed/${tmdb}`;
                     default:
-                        // Fallback logic
                         return `https://${server}/embed/${isTv ? 'tv' : 'movie'}?tmdb=${tmdb}${isTv ? `&season=${s}&episode=${e}` : ''}`;
                 }
             };
@@ -628,15 +581,24 @@
                         <button onClick={() => {setActiveTab('search'); setList([]);}} className={`flex flex-col items-center justify-center w-full py-3 ${activeTab === 'search' ? 'text-lime-400' : 'text-gray-500'}`}><svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg><span className="text-[10px] font-bold">Search</span></button>
                     </div>
 
+                    {/* MODAL REDESIGNED TO PREVENT OVERLAPPING NATIVE CONTROLS */}
                     {selectedItem && (
-                        <div className="fixed inset-0 z-50 bg-black overflow-y-auto animate-slide-up flex flex-col overflow-x-hidden">
-                            <div className="w-full bg-black flex-shrink-0 relative">
+                        <div className="fixed inset-0 z-50 bg-[#050505] overflow-y-auto animate-slide-up flex flex-col overflow-x-hidden">
+                            
+                            {/* STATIC TOP HEADER */}
+                            <div className="w-full bg-[#0a0a0a] border-b border-[#222] p-4 flex items-center justify-between z-20 sticky top-0 flex-shrink-0 shadow-lg">
+                                <h2 className="text-white font-black text-lg md:text-2xl truncate drop-shadow-lg pr-4 max-w-6xl w-full mx-auto">{displayTitle}</h2>
+                                <button onClick={() => {setSelectedItem(null); setItemDetails(null);}} className="bg-[#111] hover:bg-red-500 hover:text-white text-gray-400 rounded-full p-2 transition border border-[#333] hover:border-red-500 shrink-0">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                </button>
+                            </div>
+
+                            {/* PURE VIDEO CONTAINER (No Absolute Overlays) */}
+                            <div className="w-full bg-black flex-shrink-0 relative border-b border-[#222]">
                                 <div 
                                     ref={playerRef} 
-                                    className={`relative w-full aspect-video mx-auto flex flex-col group overflow-hidden transition-all duration-300 ${isIdle ? 'cursor-none' : 'cursor-auto'}`}
+                                    className="relative w-full aspect-video mx-auto flex flex-col overflow-hidden bg-black"
                                     style={{ maxWidth: 'calc(100vh * (16/9))', maxHeight: '100vh' }}
-                                    onMouseMove={resetIdleTimer}
-                                    onClick={resetIdleTimer}
                                 >
                                     {!isPerson ? (
                                         <iframe 
@@ -653,97 +615,75 @@
                                             <img src={`https://image.tmdb.org/t/p/original${selectedItem.profile_path}`} className="w-full h-full object-cover object-top opacity-80" />
                                         </div>
                                     )}
-
-                                    {isIdle && (
-                                        <div 
-                                            className="absolute inset-0 z-10 bg-transparent"
-                                            onMouseMove={resetIdleTimer}
-                                            onTouchStart={resetIdleTimer}
-                                            onClick={(e) => { resetIdleTimer(); e.preventDefault(); }}
-                                        ></div>
-                                    )}
-
-                                    <div 
-                                        className={`absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent p-4 flex items-center justify-between transition-all duration-500 z-20 ${isIdle ? '-translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}
-                                        onMouseEnter={handleMouseEnterControls}
-                                        onMouseLeave={handleMouseLeaveControls}
-                                    >
-                                        <h2 className="text-white font-black text-lg md:text-xl truncate drop-shadow-lg pr-4">{displayTitle}</h2>
-                                        <button onClick={() => {setSelectedItem(null); setItemDetails(null);}} className="bg-black/60 hover:bg-lime-400 hover:text-black text-white rounded-full p-2 backdrop-blur transition border border-gray-600 hover:border-lime-400 shrink-0">
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                        </button>
-                                    </div>
-
-                                    {!isPerson && (
-                                        <div 
-                                            className={`absolute bottom-0 left-0 w-full bg-gradient-to-t from-black via-black/80 to-transparent p-4 md:p-6 transition-all duration-500 z-20 flex flex-col gap-4 ${isIdle ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}
-                                            onMouseEnter={handleMouseEnterControls}
-                                            onMouseLeave={handleMouseLeaveControls}
-                                        >
-                                            <div className="flex flex-col md:flex-row items-center justify-between gap-4 w-full">
-                                                <div className="flex items-center gap-3 w-full md:w-auto flex-wrap">
-                                                    <a href={getDownloadUrl('mp4')} download className={`px-4 py-2 rounded-md font-bold text-xs md:text-sm flex items-center justify-center gap-2 transition flex-1 md:flex-none shadow-[0_0_15px_rgba(37,99,235,0.4)] ${hasCloudinaryVideo ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-gray-700 text-gray-400 cursor-not-allowed'}`} onClick={(e) => { if (!hasCloudinaryVideo) e.preventDefault(); }}>
-                                                        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>MP4
-                                                    </a>
-                                                    <a href={getDownloadUrl('webm')} download className={`px-4 py-2 rounded-md font-bold text-xs md:text-sm flex items-center justify-center gap-2 transition flex-1 md:flex-none shadow-[0_0_15px_rgba(132,204,22,0.4)] ${hasCloudinaryVideo ? 'bg-lime-500 hover:bg-lime-400 text-black' : 'bg-gray-700 text-gray-400 cursor-not-allowed'}`} onClick={(e) => { if (!hasCloudinaryVideo) e.preventDefault(); }}>
-                                                        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>WebM
-                                                    </a>
-                                                    <button onClick={handleImportClick} disabled={isUploading} className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-md font-bold text-xs md:text-sm flex items-center justify-center gap-2 transition flex-1 md:flex-none border border-purple-400/50 hover:border-purple-300 disabled:opacity-50 disabled:cursor-wait" title={uploadMode === 'url' ? "Upload from a direct URL to Cloudinary" : "Upload a local video file"}>
-                                                        {isUploading ? (<><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>{uploadProgress}%</>) : (<><svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>Import</>)}
-                                                    </button>
-                                                    <button onClick={() => setUploadMode(uploadMode === 'url' ? 'file' : 'url')} className="text-[10px] text-gray-400 underline hover:text-lime-400 transition" title="Switch between URL and file upload">{uploadMode === 'url' ? '📁 File' : '🌐 URL'}</button>
-                                                </div>
-
-                                                <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-                                                    <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur rounded border border-[#333] px-2 py-1.5 focus-within:border-lime-400 transition">
-                                                        <span className="text-[9px] md:text-xs font-black text-lime-400 uppercase tracking-widest">Sub</span>
-                                                        <select value={subtitleLang} onChange={(e) => setSubtitleLang(e.target.value)} className="bg-transparent text-white font-bold text-xs outline-none custom-bg pr-5 w-[70px] md:w-[90px]">
-                                                            <option className="bg-[#111]" value="en">English</option>
-                                                            {languages.filter(l => l.iso_639_1 !== 'en').map((l, idx) => ( <option key={idx} className="bg-[#111]" value={l.iso_639_1}>{l.english_name || l.name}</option> ))}
-                                                        </select>
-                                                    </div>
-
-                                                    {/* NEW SERVER DROPDOWN */}
-                                                    <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur rounded border border-[#333] px-2 py-1.5 focus-within:border-lime-400 transition">
-                                                        <span className="text-[9px] md:text-xs font-black text-lime-400 uppercase tracking-widest">Srv</span>
-                                                        <select value={server} onChange={(e) => setServer(e.target.value)} className="bg-transparent text-white font-bold text-xs outline-none custom-bg pr-5 w-[85px] md:w-[110px]">
-                                                            <optgroup label="VidSrc Collection">
-                                                                <option className="bg-[#111]" value="vidsrc.net">VidSrc.net</option>
-                                                                <option className="bg-[#111]" value="vidsrc.pro">VidSrc.pro</option>
-                                                                <option className="bg-[#111]" value="vidsrc.cc">VidSrc.cc</option>
-                                                                <option className="bg-[#111]" value="vidsrc.to">VidSrc.to</option>
-                                                                <option className="bg-[#111]" value="vidsrc.me">VidSrc.me</option>
-                                                                <option className="bg-[#111]" value="vidsrc.in">VidSrc.in</option>
-                                                                <option className="bg-[#111]" value="vidsrc.pm">VidSrc.pm</option>
-                                                                <option className="bg-[#111]" value="vidsrc.xyz">VidSrc.xyz</option>
-                                                            </optgroup>
-                                                            <optgroup label="Alternative APIs">
-                                                                <option className="bg-[#111]" value="autoembed">AutoEmbed</option>
-                                                                <option className="bg-[#111]" value="smashy">SmashyStream</option>
-                                                                <option className="bg-[#111]" value="multiembed">MultiEmbed</option>
-                                                                <option className="bg-[#111]" value="moviesapi">MoviesAPI</option>
-                                                                <option className="bg-[#111]" value="superembed">SuperEmbed</option>
-                                                                <option className="bg-[#111]" value="2embed">2Embed.cc</option>
-                                                            </optgroup>
-                                                        </select>
-                                                    </div>
-
-                                                    <button onClick={handleFullScreen} className="bg-black/60 hover:bg-lime-400 hover:text-black text-lime-400 backdrop-blur border border-[#333] hover:border-lime-400 rounded p-1.5 transition ml-1 shrink-0" title="Full Screen">
-                                                        <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l-5-5m11 5v-4m0 4h-4m4 0l-5-5"></path></svg>
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {uploadError && <div className="text-red-400 text-xs font-bold bg-red-900/30 rounded p-2 border border-red-800 mt-2">⚠ {uploadError}</div>}
-                                            {hasCloudinaryVideo && !isUploading && !uploadError && <div className="text-lime-400 text-xs font-bold bg-lime-900/30 rounded p-2 border border-lime-800 mt-2 inline-block max-w-max">✅ Cloud video ready — direct downloads active</div>}
-                                        </div>
-                                    )}
                                 </div>
                             </div>
 
+                            {/* STATIC BOTTOM TOOLS (Moved Below The Player) */}
+                            {!isPerson && (
+                                <div className="w-full bg-[#0a0a0a] border-b border-[#222] p-4 z-20 flex-shrink-0">
+                                    <div className="max-w-6xl mx-auto flex flex-col gap-4">
+                                        <div className="flex flex-col md:flex-row items-center justify-between gap-4 w-full">
+                                            
+                                            <div className="flex items-center gap-3 w-full md:w-auto flex-wrap">
+                                                <a href={getDownloadUrl('mp4')} download className={`px-4 py-2 rounded-md font-bold text-xs md:text-sm flex items-center justify-center gap-2 transition flex-1 md:flex-none shadow-[0_0_15px_rgba(37,99,235,0.2)] ${hasCloudinaryVideo ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-gray-700 text-gray-400 cursor-not-allowed'}`} onClick={(e) => { if (!hasCloudinaryVideo) e.preventDefault(); }}>
+                                                    <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>MP4
+                                                </a>
+                                                <a href={getDownloadUrl('webm')} download className={`px-4 py-2 rounded-md font-bold text-xs md:text-sm flex items-center justify-center gap-2 transition flex-1 md:flex-none shadow-[0_0_15px_rgba(132,204,22,0.2)] ${hasCloudinaryVideo ? 'bg-lime-500 hover:bg-lime-400 text-black' : 'bg-gray-700 text-gray-400 cursor-not-allowed'}`} onClick={(e) => { if (!hasCloudinaryVideo) e.preventDefault(); }}>
+                                                    <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>WebM
+                                                </a>
+                                                <button onClick={handleImportClick} disabled={isUploading} className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-md font-bold text-xs md:text-sm flex items-center justify-center gap-2 transition flex-1 md:flex-none border border-purple-400/50 hover:border-purple-300 disabled:opacity-50 disabled:cursor-wait" title={uploadMode === 'url' ? "Upload from a direct URL to Cloudinary" : "Upload a local video file"}>
+                                                    {isUploading ? (<><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>{uploadProgress}%</>) : (<><svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>Import</>)}
+                                                </button>
+                                                <button onClick={() => setUploadMode(uploadMode === 'url' ? 'file' : 'url')} className="text-[10px] text-gray-400 underline hover:text-lime-400 transition" title="Switch between URL and file upload">{uploadMode === 'url' ? '📁 File' : '🌐 URL'}</button>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+                                                <div className="flex items-center gap-1.5 bg-[#111] rounded border border-[#333] px-3 py-2 focus-within:border-lime-400 transition">
+                                                    <span className="text-[10px] md:text-xs font-black text-lime-400 uppercase tracking-widest">Sub</span>
+                                                    <select value={subtitleLang} onChange={(e) => setSubtitleLang(e.target.value)} className="bg-transparent text-white font-bold text-xs outline-none custom-bg pr-5 w-[70px] md:w-[90px]">
+                                                        <option className="bg-[#111]" value="en">English</option>
+                                                        {languages.filter(l => l.iso_639_1 !== 'en').map((l, idx) => ( <option key={idx} className="bg-[#111]" value={l.iso_639_1}>{l.english_name || l.name}</option> ))}
+                                                    </select>
+                                                </div>
+
+                                                <div className="flex items-center gap-1.5 bg-[#111] rounded border border-[#333] px-3 py-2 focus-within:border-lime-400 transition">
+                                                    <span className="text-[10px] md:text-xs font-black text-lime-400 uppercase tracking-widest">Srv</span>
+                                                    <select value={server} onChange={(e) => setServer(e.target.value)} className="bg-transparent text-white font-bold text-xs outline-none custom-bg pr-5 w-[85px] md:w-[110px]">
+                                                        <optgroup label="VidSrc Collection">
+                                                            <option className="bg-[#111]" value="vidsrc.net">VidSrc.net</option>
+                                                            <option className="bg-[#111]" value="vidsrc.pro">VidSrc.pro</option>
+                                                            <option className="bg-[#111]" value="vidsrc.cc">VidSrc.cc</option>
+                                                            <option className="bg-[#111]" value="vidsrc.to">VidSrc.to</option>
+                                                            <option className="bg-[#111]" value="vidsrc.me">VidSrc.me</option>
+                                                            <option className="bg-[#111]" value="vidsrc.in">VidSrc.in</option>
+                                                            <option className="bg-[#111]" value="vidsrc.pm">VidSrc.pm</option>
+                                                            <option className="bg-[#111]" value="vidsrc.xyz">VidSrc.xyz</option>
+                                                        </optgroup>
+                                                        <optgroup label="Alternative APIs">
+                                                            <option className="bg-[#111]" value="autoembed">AutoEmbed</option>
+                                                            <option className="bg-[#111]" value="smashy">SmashyStream</option>
+                                                            <option className="bg-[#111]" value="multiembed">MultiEmbed</option>
+                                                            <option className="bg-[#111]" value="moviesapi">MoviesAPI</option>
+                                                            <option className="bg-[#111]" value="superembed">SuperEmbed</option>
+                                                            <option className="bg-[#111]" value="2embed">2Embed.cc</option>
+                                                        </optgroup>
+                                                    </select>
+                                                </div>
+
+                                                <button onClick={handleFullScreen} className="bg-[#111] hover:bg-lime-400 hover:text-black text-lime-400 border border-[#333] hover:border-lime-400 rounded p-2 transition ml-1 shrink-0" title="Full Screen">
+                                                    <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l-5-5m11 5v-4m0 4h-4m4 0l-5-5"></path></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {uploadError && <div className="text-red-400 text-xs font-bold bg-red-900/30 rounded p-2 border border-red-800 mt-2">⚠ {uploadError}</div>}
+                                        {hasCloudinaryVideo && !isUploading && !uploadError && <div className="text-lime-400 text-xs font-bold bg-lime-900/30 rounded p-2 border border-lime-800 mt-2 inline-block max-w-max">✅ Cloud video ready — direct downloads active</div>}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* DETAILS PANEL */}
                             <div className="px-5 md:px-10 py-6 max-w-6xl mx-auto w-full flex-1">
-                                <h1 className="text-3xl font-black text-white leading-tight mb-2 break-words">{displayTitle}</h1>
-                                
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
                                     <div className="flex flex-wrap items-center gap-3 text-sm font-bold text-gray-400">
                                         {isPerson ? (<span className="text-lime-400 whitespace-nowrap uppercase tracking-widest text-xs">Biography</span>) : (<><span className="text-lime-400 whitespace-nowrap">★ {selectedItem.vote_average?.toFixed(1)} Match</span><span>{(selectedItem.release_date || selectedItem.first_air_date || '').split('-')[0]}</span><span className="bg-[#222] text-white px-1.5 py-0.5 rounded text-xs border border-[#333]">HD</span></>)}
