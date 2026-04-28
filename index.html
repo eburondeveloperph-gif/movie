@@ -83,18 +83,18 @@
 
         function App() {
             const [activeTab, setActiveTab] = useState('home');
-            const[list, setList] = useState([]);
-            const[genres, setGenres] = useState([]);
+            const [list, setList] = useState([]);
+            const [genres, setGenres] = useState([]);
             const[selectedItem, setSelectedItem] = useState(null);
-            const[itemDetails, setItemDetails] = useState(null);
+            const [itemDetails, setItemDetails] = useState(null);
             
             // Full Global Language State
-            const[languages, setLanguages] = useState([]);
-            const[appLang, setAppLang] = useState("en");
+            const [languages, setLanguages] = useState([]);
+            const [appLang, setAppLang] = useState("en");
             
             const[page, setPage] = useState(1);
             const [loading, setLoading] = useState(false);
-            const[copied, setCopied] = useState(false);
+            const [copied, setCopied] = useState(false);
             
             const [mediaType, setMediaType] = useState("movie"); 
             const [category, setCategory] = useState("popular");
@@ -104,6 +104,8 @@
             // Player Controls State
             const [server, setServer] = useState("vidsrc.net");
             const [subtitleLang, setSubtitleLang] = useState("en");
+
+            const playerRef = useRef(null);
 
             const headers = { 'Authorization': TMDB_AUTH, 'accept': 'application/json' };
 
@@ -126,7 +128,7 @@
                 fetch(`${TMDB_BASE}/genre/${mediaType}/list?language=${appLang}`, { headers })
                     .then(res => res.json())
                     .then(data => setGenres(data.genres || []));
-            }, [mediaType, appLang]);
+            },[mediaType, appLang]);
 
             // Fetch Specific Item Details (Automatically translates title/overview)
             useEffect(() => {
@@ -149,7 +151,7 @@
                     } catch (err) { console.error("Details API Error:", err); }
                 };
                 fetchDetails();
-            }, [selectedItem, appLang, mediaType]);
+            },[selectedItem, appLang, mediaType]);
 
             // Fetch Content List
             const fetchList = async (pageNum = 1, append = false) => {
@@ -179,7 +181,7 @@
                     setPage(1); 
                     fetchList(1, false); 
                 }
-            }, [mediaType, category, genreId, activeTab, appLang]);
+            },[mediaType, category, genreId, activeTab, appLang]);
 
             const handleSearch = async (e) => {
                 if (e) e.preventDefault();
@@ -217,6 +219,21 @@
                     setCopied(true);
                     setTimeout(() => setCopied(false), 2000);
                 }).catch(err => console.error("Clipboard copy failed!", err));
+            };
+
+            // Handle Full Screen Request for the iframe
+            const handleFullScreen = () => {
+                if (playerRef.current) {
+                    if (playerRef.current.requestFullscreen) {
+                        playerRef.current.requestFullscreen();
+                    } else if (playerRef.current.mozRequestFullScreen) { // Firefox
+                        playerRef.current.mozRequestFullScreen();
+                    } else if (playerRef.current.webkitRequestFullscreen) { // Chrome, Safari and Opera
+                        playerRef.current.webkitRequestFullscreen();
+                    } else if (playerRef.current.msRequestFullscreen) { // IE/Edge
+                        playerRef.current.msRequestFullscreen();
+                    }
+                }
             };
 
             const heroItem = list.length > 0 ? list[0] : null;
@@ -417,6 +434,7 @@
                                 {!isPerson ? (
                                     <div className="relative aspect-video w-full bg-black">
                                         <iframe 
+                                            ref={playerRef}
                                             key={`${selectedItem.id}-${server}-${subtitleLang}`}
                                             src={getEmbedUrl(selectedItem)}
                                             className="w-full h-full absolute inset-0"
@@ -461,19 +479,30 @@
                                                 </select>
                                             </div>
 
-                                            {/* Server Control */}
-                                            <div className="flex items-center gap-2 w-full sm:w-auto sm:justify-end">
-                                                <span className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap shrink-0">Server</span>
-                                                <select 
-                                                    value={server}
-                                                    onChange={(e) => setServer(e.target.value)}
-                                                    className="bg-[#111] border border-[#333] text-lime-400 font-bold text-xs rounded-sm px-2 py-1.5 outline-none custom-bg pr-6 flex-1 sm:max-w-[140px] text-ellipsis overflow-hidden whitespace-nowrap focus:border-lime-400 transition"
+                                            <div className="flex items-center gap-3 w-full sm:w-auto sm:justify-end">
+                                                {/* Server Control */}
+                                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                                    <span className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap shrink-0">Server</span>
+                                                    <select 
+                                                        value={server}
+                                                        onChange={(e) => setServer(e.target.value)}
+                                                        className="bg-[#111] border border-[#333] text-lime-400 font-bold text-xs rounded-sm px-2 py-1.5 outline-none custom-bg pr-6 flex-1 sm:max-w-[140px] text-ellipsis overflow-hidden whitespace-nowrap focus:border-lime-400 transition"
+                                                    >
+                                                        <option value="vidsrc.net">Server 1 (vidsrc.net)</option>
+                                                        <option value="vidsrc.in">Server 2 (vidsrc.in)</option>
+                                                        <option value="vidsrc.pm">Server 3 (vidsrc.pm)</option>
+                                                        <option value="vidsrc.xyz">Server 4 (vidsrc.xyz)</option>
+                                                    </select>
+                                                </div>
+
+                                                {/* Full Screen Button */}
+                                                <button 
+                                                    onClick={handleFullScreen}
+                                                    className="bg-[#111] border border-[#333] hover:border-lime-400 text-lime-400 flex items-center justify-center gap-1 font-bold text-xs rounded-sm px-3 py-1.5 transition w-full sm:w-auto"
                                                 >
-                                                    <option value="vidsrc.net">Server 1 (vidsrc.net)</option>
-                                                    <option value="vidsrc.in">Server 2 (vidsrc.in)</option>
-                                                    <option value="vidsrc.pm">Server 3 (vidsrc.pm)</option>
-                                                    <option value="vidsrc.xyz">Server 4 (vidsrc.xyz)</option>
-                                                </select>
+                                                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"></path></svg>
+                                                    <span className="whitespace-nowrap">Full Screen</span>
+                                                </button>
                                             </div>
 
                                         </div>
