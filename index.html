@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="referrer" content="origin" /> <!-- Required for VidSrc Ad-Free Plays -->
+    <meta name="referrer" content="origin" />
     <title>EburonFlix - Free Movie No Ads</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -15,26 +15,15 @@
             theme: {
                 extend: {
                     colors: {
-                        lime: {
-                            300: '#bef264',
-                            400: '#a3e635',
-                            500: '#84cc16',
-                            600: '#65a30d',
-                        }
+                        lime: { 300: '#bef264', 400: '#a3e635', 500: '#84cc16', 600: '#65a30d', }
                     },
                     animation: {
                         'slide-up': 'slideUp 0.3s ease-out forwards',
                         'fade-in': 'fadeIn 0.3s ease-out forwards',
                     },
                     keyframes: {
-                        slideUp: {
-                            '0%': { transform: 'translateY(100%)' },
-                            '100%': { transform: 'translateY(0)' },
-                        },
-                        fadeIn: {
-                            '0%': { opacity: '0' },
-                            '100%': { opacity: '1' },
-                        }
+                        slideUp: { '0%': { transform: 'translateY(100%)' }, '100%': { transform: 'translateY(0)' }, },
+                        fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' }, }
                     }
                 }
             }
@@ -76,40 +65,88 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useRef, useCallback } = React;
 
         const TMDB_AUTH = "Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJiMzAxOTU1YzY5ZjE3NDhlZmMyNGIxYjI0ZmI2OThiZSIsIm5iZiI6MTY2NzE0ODg2MS42NzUsInN1YiI6IjYzNWVhYzNkMWI3Mjk0MDA3YmYwMjc0NSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.Ay7PBnj56eAUGAiiHzrC9hMdGFr12676xaqXyJREKx8";
         const TMDB_BASE = "https://api.themoviedb.org/3";
+
+        // ----- CLOUDINARY CONFIGURATION -----
+        const CLOUDINARY_CLOUD_NAME = "dzxcvlz5f";
+        const CLOUDINARY_API_KEY = "313246487695372";
+        // IMPORTANT: Create an unsigned upload preset in your Cloudinary dashboard (Settings > Upload > Upload presets)
+        //             and set its mode to "Unsigned". Then replace this placeholder with its name.
+        const CLOUDINARY_UPLOAD_PRESET = "eburonflix_upload";   // ← YOUR ACTUAL PRESET NAME
 
         function App() {
             const [activeTab, setActiveTab] = useState('home');
             const [list, setList] = useState([]);
             const [genres, setGenres] = useState([]);
-            const[selectedItem, setSelectedItem] = useState(null);
+            const [selectedItem, setSelectedItem] = useState(null);
             const [itemDetails, setItemDetails] = useState(null);
             
-            // Full Global Language State
             const [languages, setLanguages] = useState([]);
             const [appLang, setAppLang] = useState("en");
             
-            const[page, setPage] = useState(1);
+            const [page, setPage] = useState(1);
             const [loading, setLoading] = useState(false);
             const [copied, setCopied] = useState(false);
             
             const [mediaType, setMediaType] = useState("movie"); 
             const [category, setCategory] = useState("popular");
-            const[genreId, setGenreId] = useState("");
+            const [genreId, setGenreId] = useState("");
             const [searchQuery, setSearchQuery] = useState("");
             
-            // Player Controls State
             const [server, setServer] = useState("vidsrc.net");
             const [subtitleLang, setSubtitleLang] = useState("en");
 
+            // --- AUTO-DISAPPEAR CONTROLS STATE ---
+            const [isIdle, setIsIdle] = useState(false);
+            const idleTimerRef = useRef(null);
             const playerRef = useRef(null);
+
+            // --- CLOUDINARY UPLOAD STATE ---
+            const [uploadedCloudinaryIds, setUploadedCloudinaryIds] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('eburonflix_cloudinary_ids');
+                    return saved ? JSON.parse(saved) : {};
+                } catch { return {}; }
+            });
+            const [isUploading, setIsUploading] = useState(false);
+            const [uploadProgress, setUploadProgress] = useState(0);
+            const [uploadError, setUploadError] = useState(null);
+            const [uploadMode, setUploadMode] = useState('url'); // 'url' or 'file'
+            const fileInputRef = useRef(null);
 
             const headers = { 'Authorization': TMDB_AUTH, 'accept': 'application/json' };
 
-            // Fetch Full Languages Configuration
+            // Reset Timer
+            const resetIdleTimer = () => {
+                setIsIdle(false);
+                if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+                idleTimerRef.current = setTimeout(() => {
+                    setIsIdle(true);
+                }, 5000); 
+            };
+
+            useEffect(() => {
+                if (selectedItem) {
+                    resetIdleTimer();
+                    window.addEventListener('mousemove', resetIdleTimer);
+                    window.addEventListener('touchstart', resetIdleTimer);
+                    window.addEventListener('click', resetIdleTimer);
+                    window.addEventListener('keydown', resetIdleTimer);
+                } else {
+                    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+                }
+                return () => {
+                    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+                    window.removeEventListener('mousemove', resetIdleTimer);
+                    window.removeEventListener('touchstart', resetIdleTimer);
+                    window.removeEventListener('click', resetIdleTimer);
+                    window.removeEventListener('keydown', resetIdleTimer);
+                };
+            }, [selectedItem]);
+
             useEffect(() => {
                 fetch(`${TMDB_BASE}/configuration/languages`, { headers })
                     .then(res => res.json())
@@ -120,17 +157,14 @@
                             setLanguages(validLangs);
                         }
                     })
-                    .catch(err => console.error("Language Fetch Error:", err));
             },[]);
 
-            // Fetch Genres
             useEffect(() => {
                 fetch(`${TMDB_BASE}/genre/${mediaType}/list?language=${appLang}`, { headers })
                     .then(res => res.json())
                     .then(data => setGenres(data.genres || []));
             },[mediaType, appLang]);
 
-            // Fetch Specific Item Details (Automatically translates title/overview)
             useEffect(() => {
                 if (!selectedItem) {
                     setItemDetails(null);
@@ -143,17 +177,15 @@
                         else if (selectedItem.known_for_department) type = 'person';
                         else type = 'movie';
                     }
-                    
                     try {
                         const res = await fetch(`${TMDB_BASE}/${type}/${selectedItem.id}?language=${appLang}`, { headers });
                         const data = await res.json();
                         setItemDetails(data);
-                    } catch (err) { console.error("Details API Error:", err); }
+                    } catch (err) { console.error("Details Error:", err); }
                 };
                 fetchDetails();
             },[selectedItem, appLang, mediaType]);
 
-            // Fetch Content List
             const fetchList = async (pageNum = 1, append = false) => {
                 setLoading(true);
                 let url;
@@ -170,17 +202,13 @@
                 try {
                     const res = await fetch(url, { headers });
                     const data = await res.json();
-                    setList(prev => append ? [...prev, ...data.results] : data.results);
+                    setList(prev => append ?[...prev, ...data.results] : data.results);
                 } catch (err) { console.error(err); }
                 finally { setLoading(false); }
             };
 
-            // Trigger fetch on filter/language changes
             useEffect(() => { 
-                if (activeTab === 'home') {
-                    setPage(1); 
-                    fetchList(1, false); 
-                }
+                if (activeTab === 'home') { setPage(1); fetchList(1, false); }
             },[mediaType, category, genreId, activeTab, appLang]);
 
             const handleSearch = async (e) => {
@@ -195,44 +223,164 @@
                 setLoading(false);
             };
 
-            // Refetch search results if language changes while on search tab
             useEffect(() => {
-                if (activeTab === 'search' && searchQuery) {
-                    handleSearch();
-                }
-            }, [appLang]);
+                if (activeTab === 'search' && searchQuery) handleSearch();
+            },[appLang]);
 
             const handleGlobalLanguageSync = (langCode) => {
                 setAppLang(langCode);
-                setSubtitleLang(langCode); // Auto-sync subtitles with UI language
+                setSubtitleLang(langCode);
             };
 
             const getEmbedUrl = (item) => {
                 if (!item) return "";
                 const isTv = item.media_type === 'tv' || (!item.media_type && item.first_air_date);
-                // Pass language down to iframe player parameters
                 return `https://${server}/embed/${isTv ? 'tv' : 'movie'}?tmdb=${item.id}${isTv ? '&season=1&episode=1' : ''}&language=${subtitleLang}&sub=${subtitleLang}`;
+            };
+
+            // ----- CLOUDINARY DOWNLOAD URL GENERATOR -----
+            const getDownloadUrl = useCallback((format) => {
+                if (!selectedItem) return "#";
+                const publicId = uploadedCloudinaryIds[selectedItem.id];
+                if (!publicId) return "#"; // No cloudinary video uploaded yet
+
+                return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/video/upload/f_${format}/${publicId}`;
+            }, [selectedItem, uploadedCloudinaryIds]);
+
+            // ----- CLOUDINARY UPLOAD HANDLERS -----
+            const uploadFromUrl = async (videoUrl) => {
+                if (!selectedItem) return;
+                setIsUploading(true);
+                setUploadProgress(0);
+                setUploadError(null);
+
+                const isTv = selectedItem.media_type === 'tv' || (!selectedItem.media_type && selectedItem.first_air_date);
+                const publicIdBase = isTv ? `tv/${selectedItem.id}/s1e1` : `movie/${selectedItem.id}`;
+
+                const formData = new FormData();
+                formData.append('file', videoUrl);               // remote URL
+                formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+                formData.append('public_id', publicIdBase);
+                formData.append('api_key', CLOUDINARY_API_KEY);
+
+                try {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`);
+
+                    xhr.upload.onprogress = (event) => {
+                        if (event.lengthComputable) {
+                            const percent = Math.round((event.loaded / event.total) * 100);
+                            setUploadProgress(percent);
+                        }
+                    };
+
+                    const response = await new Promise((resolve, reject) => {
+                        xhr.onload = () => {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                resolve(JSON.parse(xhr.responseText));
+                            } else {
+                                reject(JSON.parse(xhr.responseText));
+                            }
+                        };
+                        xhr.onerror = () => reject(new Error('Network error'));
+                        xhr.send(formData);
+                    });
+
+                    const newPublicId = response.public_id;
+                    const updatedIds = { ...uploadedCloudinaryIds, [selectedItem.id]: newPublicId };
+                    setUploadedCloudinaryIds(updatedIds);
+                    localStorage.setItem('eburonflix_cloudinary_ids', JSON.stringify(updatedIds));
+                } catch (err) {
+                    console.error('Upload failed:', err);
+                    setUploadError(err?.error?.message || 'Upload failed. Is the video URL accessible?');
+                } finally {
+                    setIsUploading(false);
+                    setUploadProgress(0);
+                }
+            };
+
+            const handleImportClick = () => {
+                if (uploadMode === 'url') {
+                    const isTv = selectedItem.media_type === 'tv' || (!selectedItem.media_type && selectedItem.first_air_date);
+                    const base = window.location.origin; // e.g. https://yourdeploymentdomain.com
+                    const path = isTv
+                        ? `/videos/tv/${selectedItem.id}/season-1/episode-1.mp4`
+                        : `/videos/movie/${selectedItem.id}.mp4`;
+                    const videoUrl = `${base}${path}`;
+                    uploadFromUrl(videoUrl);
+                } else {
+                    // Manual file picker
+                    if (fileInputRef.current) fileInputRef.current.click();
+                }
+            };
+
+            const handleFileChange = async (e) => {
+                const file = e.target.files[0];
+                if (!file || !selectedItem) return;
+
+                setIsUploading(true);
+                setUploadProgress(0);
+                setUploadError(null);
+
+                const isTv = selectedItem.media_type === 'tv' || (!selectedItem.media_type && selectedItem.first_air_date);
+                const publicIdBase = isTv ? `tv/${selectedItem.id}/s1e1` : `movie/${selectedItem.id}`;
+
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+                formData.append('public_id', publicIdBase);
+                formData.append('api_key', CLOUDINARY_API_KEY);
+
+                try {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`);
+
+                    xhr.upload.onprogress = (event) => {
+                        if (event.lengthComputable) {
+                            const percent = Math.round((event.loaded / event.total) * 100);
+                            setUploadProgress(percent);
+                        }
+                    };
+
+                    const response = await new Promise((resolve, reject) => {
+                        xhr.onload = () => {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                resolve(JSON.parse(xhr.responseText));
+                            } else {
+                                reject(JSON.parse(xhr.responseText));
+                            }
+                        };
+                        xhr.onerror = () => reject(new Error('Network error'));
+                        xhr.send(formData);
+                    });
+
+                    const newPublicId = response.public_id;
+                    const updatedIds = { ...uploadedCloudinaryIds, [selectedItem.id]: newPublicId };
+                    setUploadedCloudinaryIds(updatedIds);
+                    localStorage.setItem('eburonflix_cloudinary_ids', JSON.stringify(updatedIds));
+                } catch (err) {
+                    console.error('Upload failed:', err);
+                    setUploadError(err?.error?.message || 'Upload failed. Check preset and file format.');
+                } finally {
+                    setIsUploading(false);
+                    setUploadProgress(0);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                }
             };
 
             const handleCopy = (text) => {
                 navigator.clipboard.writeText(text).then(() => {
                     setCopied(true);
                     setTimeout(() => setCopied(false), 2000);
-                }).catch(err => console.error("Clipboard copy failed!", err));
+                });
             };
 
-            // Handle Full Screen Request for the iframe
             const handleFullScreen = () => {
                 if (playerRef.current) {
-                    if (playerRef.current.requestFullscreen) {
-                        playerRef.current.requestFullscreen();
-                    } else if (playerRef.current.mozRequestFullScreen) { // Firefox
-                        playerRef.current.mozRequestFullScreen();
-                    } else if (playerRef.current.webkitRequestFullscreen) { // Chrome, Safari and Opera
-                        playerRef.current.webkitRequestFullscreen();
-                    } else if (playerRef.current.msRequestFullscreen) { // IE/Edge
-                        playerRef.current.msRequestFullscreen();
-                    }
+                    if (playerRef.current.requestFullscreen) { playerRef.current.requestFullscreen(); }
+                    else if (playerRef.current.mozRequestFullScreen) { playerRef.current.mozRequestFullScreen(); }
+                    else if (playerRef.current.webkitRequestFullscreen) { playerRef.current.webkitRequestFullscreen(); }
+                    else if (playerRef.current.msRequestFullscreen) { playerRef.current.msRequestFullscreen(); }
                 }
             };
 
@@ -244,62 +392,43 @@
             const displayTitle = itemDetails?.title || itemDetails?.name || selectedItem?.title || selectedItem?.name;
             const displayOverview = itemDetails?.overview || itemDetails?.biography || selectedItem?.overview || selectedItem?.biography || "No details available for this title.";
 
+            const hasCloudinaryVideo = selectedItem && uploadedCloudinaryIds[selectedItem.id];
+
             return (
                 <div className="pb-20 md:pb-0 min-h-screen relative w-full overflow-hidden bg-black">
                     
                     {/* GLOBAL TOP NAVIGATION */}
                     <div className={`fixed top-0 left-0 w-full z-40 px-5 md:px-10 lg:px-12 pt-4 transition-all ${activeTab === 'home' ? 'top-gradient pb-6' : 'bg-[#0a0a0a]/95 backdrop-blur-md border-b border-[#222] pb-4'}`}>
                         <div className="flex justify-between items-center max-w-6xl mx-auto w-full">
-                            
                             <h1 onClick={() => { setActiveTab('home'); setSearchQuery(""); }} className="text-2xl font-black tracking-wide flex items-center gap-1 cursor-pointer hover:scale-105 transition-transform shrink-0">
                                 <span className="text-lime-400">E</span>buron<span className="text-lime-400">Flix</span>
                             </h1>
-                            
                             <div className="flex items-center gap-3 md:gap-6 w-full justify-end">
-                                
-                                {/* Desktop Global Search Bar */}
                                 <form onSubmit={(e) => { e.preventDefault(); setActiveTab('search'); handleSearch(e); }} className="hidden md:flex items-center bg-[#111] rounded-full px-3 py-1.5 border border-[#333] focus-within:border-lime-400 transition ml-auto">
                                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Search titles..." 
-                                        className="bg-transparent text-white outline-none px-2 w-32 focus:w-48 transition-all text-sm font-medium" 
-                                        value={searchQuery} 
-                                        onChange={e => setSearchQuery(e.target.value)} 
-                                    />
+                                    <input type="text" placeholder="Search titles..." className="bg-transparent text-white outline-none px-2 w-32 focus:w-48 transition-all text-sm font-medium" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                                 </form>
 
-                                {/* Full Global Translation Dropdown */}
                                 <div className="flex items-center gap-1.5 bg-[#111] px-2 py-1.5 rounded-md border border-[#333] hover:border-lime-400 transition shrink-0">
                                     <svg className="w-4 h-4 text-lime-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path></svg>
-                                    <select 
-                                        value={appLang} 
-                                        onChange={e => handleGlobalLanguageSync(e.target.value)} 
-                                        className="bg-transparent text-gray-300 font-bold outline-none custom-bg pr-5 max-w-[80px] md:max-w-[120px] text-ellipsis text-xs md:text-sm cursor-pointer"
-                                    >
+                                    <select value={appLang} onChange={e => handleGlobalLanguageSync(e.target.value)} className="bg-transparent text-gray-300 font-bold outline-none custom-bg pr-5 max-w-[80px] md:max-w-[120px] text-ellipsis text-xs md:text-sm cursor-pointer">
                                         <option className="bg-[#111] text-white" value="en">English</option>
-                                        {languages.filter(l => l.iso_639_1 !== 'en').map(l => (
-                                            <option className="bg-[#111] text-white" key={l.iso_639_1} value={l.iso_639_1}>{l.english_name || l.name}</option>
-                                        ))}
+                                        {languages.filter(l => l.iso_639_1 !== 'en').map(l => ( <option className="bg-[#111] text-white" key={l.iso_639_1} value={l.iso_639_1}>{l.english_name || l.name}</option> ))}
                                     </select>
                                 </div>
-
                             </div>
                         </div>
                         
-                        {/* Categories & Genres (Home Only) */}
                         {activeTab === 'home' && (
                             <div className="flex items-center gap-4 mt-4 text-sm font-bold max-w-6xl mx-auto w-full overflow-x-auto no-scrollbar whitespace-nowrap pb-1">
                                 <button onClick={() => setMediaType('movie')} className={`transition ${mediaType === 'movie' ? 'text-white border-b-2 border-lime-400' : 'text-gray-300'}`}>Movies</button>
                                 <button onClick={() => setMediaType('tv')} className={`transition ${mediaType === 'tv' ? 'text-white border-b-2 border-lime-400' : 'text-gray-300'}`}>TV Shows</button>
-                                
                                 <select value={category} onChange={e => {setCategory(e.target.value); setGenreId("");}} className="bg-transparent text-gray-300 font-bold outline-none custom-bg pr-5 max-w-[120px] text-ellipsis">
                                     <option className="bg-[#111] text-white" value="popular">Popular</option>
                                     <option className="bg-[#111] text-white" value="new_released">New</option>
                                     <option className="bg-[#111] text-white" value="top_rated">Top Rated</option>
                                     <option className="bg-[#111] text-white" value="tagalog">Tagalog 🇵🇭</option>
                                 </select>
-
                                 {category !== 'tagalog' && (
                                     <select value={genreId} onChange={e => setGenreId(e.target.value)} className="bg-transparent text-gray-300 font-bold outline-none custom-bg pr-5 ml-auto max-w-[110px] text-ellipsis">
                                         <option className="bg-[#111] text-white" value="">Genres</option>
@@ -313,44 +442,26 @@
                     {/* MAIN CONTENT VIEW */}
                     {activeTab === 'home' ? (
                         <div className="w-full">
-                            {/* HERO SECTION */}
                             {heroItem && (
                                 <div className="relative w-full h-[65vh] md:h-[80vh] bg-[#111]">
-                                    <img 
-                                        src={`https://image.tmdb.org/t/p/original${heroItem.backdrop_path || heroItem.poster_path}`} 
-                                        className="w-full h-full object-cover opacity-80"
-                                        alt={heroItem.title || heroItem.name}
-                                    />
+                                    <img src={`https://image.tmdb.org/t/p/original${heroItem.backdrop_path || heroItem.poster_path}`} className="w-full h-full object-cover opacity-80" />
                                     <div className="absolute inset-0 hero-gradient"></div>
-                                    
                                     <div className="absolute bottom-0 left-0 w-full px-5 md:px-10 lg:px-12 pb-6 flex flex-col items-center justify-end text-center z-10 md:items-start md:text-left pt-32">
                                         <div className="max-w-6xl mx-auto w-full">
-                                            <h2 className="text-4xl md:text-6xl font-black text-white drop-shadow-lg mb-2 uppercase tracking-tighter break-words line-clamp-3 w-full">
-                                                {heroItem.title || heroItem.name}
-                                            </h2>
+                                            <h2 className="text-4xl md:text-6xl font-black text-white drop-shadow-lg mb-2 uppercase tracking-tighter break-words line-clamp-3 w-full">{heroItem.title || heroItem.name}</h2>
                                             <div className="flex flex-wrap gap-2 text-[11px] md:text-sm font-bold text-gray-300 mb-5 justify-center md:justify-start items-center max-w-full">
-                                                <span className="text-lime-400">★ {heroItem.vote_average?.toFixed(1)}</span>
-                                                <span>•</span>
-                                                <span>{(heroItem.release_date || heroItem.first_air_date || '').split('-')[0]}</span>
+                                                <span className="text-lime-400">★ {heroItem.vote_average?.toFixed(1)}</span><span>•</span><span>{(heroItem.release_date || heroItem.first_air_date || '').split('-')[0]}</span>
                                                 {heroItem.original_language === 'tl' && <span className="bg-lime-400/20 text-lime-400 px-1.5 py-0.5 rounded">Tagalog</span>}
                                             </div>
-                                            
                                             <div className="flex gap-3 w-full justify-center md:justify-start">
-                                                <button onClick={() => setSelectedItem(heroItem)} className="bg-lime-400 hover:bg-lime-500 text-black px-6 py-2.5 rounded-md font-black flex items-center justify-center gap-2 w-[45%] md:w-auto transition">
-                                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                                                    Play
-                                                </button>
-                                                <button onClick={() => setSelectedItem(heroItem)} className="bg-[#222222]/80 hover:bg-[#333333] text-white px-6 py-2.5 rounded-md font-bold flex items-center justify-center gap-2 w-[45%] md:w-auto transition border border-gray-600">
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                                    Info
-                                                </button>
+                                                <button onClick={() => setSelectedItem(heroItem)} className="bg-lime-400 hover:bg-lime-500 text-black px-6 py-2.5 rounded-md font-black flex items-center justify-center gap-2 w-[45%] md:w-auto transition"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Play</button>
+                                                <button onClick={() => setSelectedItem(heroItem)} className="bg-[#222222]/80 hover:bg-[#333333] text-white px-6 py-2.5 rounded-md font-bold flex items-center justify-center gap-2 w-[45%] md:w-auto transition border border-gray-600"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>Info</button>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             )}
 
-                            {/* HORIZONTAL TRENDING */}
                             {trendingRow.length > 0 && (
                                 <div className="mt-6 px-5 md:px-10 lg:px-12 max-w-6xl mx-auto w-full overflow-hidden">
                                     <h3 className="text-lg font-bold text-white mb-3 tracking-wide">Trending Now</h3>
@@ -366,7 +477,6 @@
                                 </div>
                             )}
 
-                            {/* VERTICAL EXPLORE GRID */}
                             {gridItems.length > 0 && (
                                 <div className="mt-2 px-5 md:px-10 lg:px-12 pb-6 max-w-6xl mx-auto w-full overflow-hidden">
                                     <h3 className="text-lg font-bold text-white mb-3 tracking-wide">Explore More</h3>
@@ -377,29 +487,18 @@
                                             </div>
                                         ))}
                                     </div>
-                                    <button onClick={() => fetchList(page + 1, true)} className="w-full mt-6 bg-[#111] text-lime-400 border border-[#222] py-3 rounded-md font-bold uppercase tracking-wider hover:bg-[#1a1a1a] transition">
-                                        {loading ? 'Loading...' : 'Load More'}
-                                    </button>
+                                    <button onClick={() => fetchList(page + 1, true)} className="w-full mt-6 bg-[#111] text-lime-400 border border-[#222] py-3 rounded-md font-bold uppercase tracking-wider hover:bg-[#1a1a1a] transition">{loading ? 'Loading...' : 'Load More'}</button>
                                 </div>
                             )}
                         </div>
                     ) : (
-                        /* SEARCH TAB */
                         <div className="w-full pt-28 md:pt-32 px-5 md:px-10 lg:px-12 max-w-6xl mx-auto min-h-screen animate-fade-in">
                             <h2 className="text-2xl font-black text-white mb-4">Discover</h2>
                             <form onSubmit={handleSearch} className="flex gap-2 mb-6 w-full">
-                                <input 
-                                    type="text" 
-                                    value={searchQuery} 
-                                    onChange={e => setSearchQuery(e.target.value)}
-                                    placeholder="Search Movies, TV Shows, Actors..." 
-                                    className="flex-1 min-w-0 input-dark rounded-md px-4 py-3 text-sm focus:ring-1 focus:ring-lime-400 outline-none"
-                                />
+                                <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search Movies, TV Shows..." className="flex-1 min-w-0 input-dark rounded-md px-4 py-3 text-sm focus:ring-1 focus:ring-lime-400 outline-none" />
                                 <button type="submit" className="bg-lime-400 hover:bg-lime-500 text-black px-6 py-3 rounded-md font-bold whitespace-nowrap transition">Find</button>
                             </form>
-
                             {loading && <div className="text-lime-400 font-bold text-center mt-10">Searching...</div>}
-                            
                             <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-3 pb-8">
                                 {list.map(item => (
                                     <div key={item.id} onClick={() => setSelectedItem(item)} className="cursor-pointer aspect-[2/3] rounded-md overflow-hidden bg-[#111] border border-[#222]">
@@ -407,111 +506,174 @@
                                     </div>
                                 ))}
                             </div>
-                            
-                            {!loading && list.length === 0 && searchQuery && (
-                                <div className="text-gray-500 font-bold text-center mt-10">No results found.</div>
-                            )}
                         </div>
                     )}
 
-                    {/* BOTTOM NAV (MOBILE) */}
                     <div className="md:hidden fixed bottom-0 left-0 w-full bg-[#0a0a0a]/95 backdrop-blur-md border-t border-[#222] z-40 flex justify-around items-center pb-safe">
-                        <button onClick={() => {setActiveTab('home'); setSearchQuery("");}} className={`flex flex-col items-center justify-center w-full py-3 ${activeTab === 'home' ? 'text-lime-400' : 'text-gray-500'}`}>
-                            <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
-                            <span className="text-[10px] font-bold">Home</span>
-                        </button>
-                        <button onClick={() => {setActiveTab('search'); setList([]);}} className={`flex flex-col items-center justify-center w-full py-3 ${activeTab === 'search' ? 'text-lime-400' : 'text-gray-500'}`}>
-                            <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                            <span className="text-[10px] font-bold">Search</span>
-                        </button>
+                        <button onClick={() => {setActiveTab('home'); setSearchQuery("");}} className={`flex flex-col items-center justify-center w-full py-3 ${activeTab === 'home' ? 'text-lime-400' : 'text-gray-500'}`}><svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg><span className="text-[10px] font-bold">Home</span></button>
+                        <button onClick={() => {setActiveTab('search'); setList([]);}} className={`flex flex-col items-center justify-center w-full py-3 ${activeTab === 'search' ? 'text-lime-400' : 'text-gray-500'}`}><svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg><span className="text-[10px] font-bold">Search</span></button>
                     </div>
 
                     {/* FULL SCREEN PLAYER MODAL */}
                     {selectedItem && (
                         <div className="fixed inset-0 z-50 bg-black overflow-y-auto animate-slide-up flex flex-col overflow-x-hidden">
                             
-                            <div className="sticky top-0 w-full z-50 bg-black shadow-2xl">
-                                {!isPerson ? (
-                                    <div className="relative aspect-video w-full bg-black">
+                            <div className="w-full bg-black flex-shrink-0 relative">
+                                <div 
+                                    ref={playerRef} 
+                                    className={`relative w-full aspect-video mx-auto flex flex-col group overflow-hidden transition-all duration-300 ${isIdle ? 'cursor-none' : 'cursor-auto'}`}
+                                    style={{ maxWidth: 'calc(100vh * (16/9))', maxHeight: '100vh' }}
+                                    onMouseMove={resetIdleTimer}
+                                    onClick={resetIdleTimer}
+                                >
+                                    {!isPerson ? (
                                         <iframe 
-                                            ref={playerRef}
                                             key={`${selectedItem.id}-${server}-${subtitleLang}`}
                                             src={getEmbedUrl(selectedItem)}
-                                            className="w-full h-full absolute inset-0"
+                                            className="w-full h-full absolute inset-0 z-0"
                                             allowFullScreen
                                             allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
                                             frameBorder="0"
                                             referrerPolicy="origin"
                                         ></iframe>
-                                    </div>
-                                ) : (
-                                    <div className="relative h-[40vh] w-full bg-[#111]">
-                                        <img 
-                                            src={`https://image.tmdb.org/t/p/original${selectedItem.profile_path}`} 
-                                            className="w-full h-full object-cover object-top opacity-80"
-                                        />
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent"></div>
-                                    </div>
-                                )}
+                                    ) : (
+                                        <div className="relative h-full w-full bg-[#111] z-0">
+                                            <img src={`https://image.tmdb.org/t/p/original${selectedItem.profile_path}`} className="w-full h-full object-cover object-top opacity-80" />
+                                        </div>
+                                    )}
 
-                                <button onClick={() => {setSelectedItem(null); setItemDetails(null);}} className="absolute top-4 right-5 md:right-10 lg:right-12 bg-black/60 backdrop-blur text-white rounded-full p-2 hover:bg-lime-400 hover:text-black transition z-50">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                </button>
-                                
-                                {/* PLAYER CONTROLS */}
-                                {!isPerson && (
-                                    <div className="bg-[#0a0a0a] w-full border-t border-b border-[#222]">
-                                        <div className="px-5 md:px-10 lg:px-12 py-3 max-w-6xl mx-auto flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 overflow-hidden w-full">
-                                            
-                                            {/* Subtitle List Dropdown (Full Languages List) */}
-                                            <div className="flex items-center gap-2 w-full sm:w-auto">
-                                                <svg className="w-5 h-5 text-lime-400 shrink-0 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5h18a2 2 0 012 2v10a2 2 0 01-2 2H3a2 2 0 01-2-2V7a2 2 0 012-2zM7 15h3a1 1 0 001-1v-4a1 1 0 00-1-1H7a1 1 0 00-1 1v4a1 1 0 001 1zm7 0h3a1 1 0 001-1v-4a1 1 0 00-1-1h-3a1 1 0 00-1 1v4a1 1 0 001 1z"></path></svg>
-                                                <span className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap shrink-0">Subtitles</span>
-                                                <select 
-                                                    value={subtitleLang}
-                                                    onChange={(e) => setSubtitleLang(e.target.value)}
-                                                    className="bg-[#111] border border-[#333] text-white font-bold text-xs rounded-sm px-2 py-1.5 outline-none custom-bg pr-6 flex-1 sm:max-w-[140px] text-ellipsis overflow-hidden whitespace-nowrap focus:border-lime-400 transition"
-                                                >
-                                                    <option value="en">English</option>
-                                                    {languages.filter(l => l.iso_639_1 !== 'en').map((l, idx) => (
-                                                        <option key={idx} value={l.iso_639_1}>{l.english_name || l.name}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
+                                    {isIdle && (
+                                        <div 
+                                            className="absolute inset-0 z-10 bg-transparent"
+                                            onMouseMove={resetIdleTimer}
+                                            onTouchStart={resetIdleTimer}
+                                            onClick={(e) => { 
+                                                resetIdleTimer(); 
+                                                e.preventDefault(); 
+                                            }}
+                                        ></div>
+                                    )}
 
-                                            <div className="flex items-center gap-3 w-full sm:w-auto sm:justify-end">
-                                                {/* Server Control */}
-                                                <div className="flex items-center gap-2 w-full sm:w-auto">
-                                                    <span className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap shrink-0">Server</span>
-                                                    <select 
-                                                        value={server}
-                                                        onChange={(e) => setServer(e.target.value)}
-                                                        className="bg-[#111] border border-[#333] text-lime-400 font-bold text-xs rounded-sm px-2 py-1.5 outline-none custom-bg pr-6 flex-1 sm:max-w-[140px] text-ellipsis overflow-hidden whitespace-nowrap focus:border-lime-400 transition"
+                                    {/* Top Bar */}
+                                    <div className={`absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent p-4 flex items-center justify-between transition-all duration-500 z-20 ${isIdle ? '-translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}>
+                                        <h2 className="text-white font-black text-lg md:text-xl truncate drop-shadow-lg pr-4">{displayTitle}</h2>
+                                        <button onClick={() => {setSelectedItem(null); setItemDetails(null);}} className="bg-black/60 hover:bg-lime-400 hover:text-black text-white rounded-full p-2 backdrop-blur transition border border-gray-600 hover:border-lime-400 shrink-0">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                        </button>
+                                    </div>
+
+                                    {/* Bottom Bar */}
+                                    {!isPerson && (
+                                        <div className={`absolute bottom-0 left-0 w-full bg-gradient-to-t from-black via-black/80 to-transparent p-4 md:p-6 transition-all duration-500 z-20 flex flex-col gap-4 ${isIdle ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}>
+                                            <div className="flex flex-col md:flex-row items-center justify-between gap-4 w-full">
+                                                <div className="flex items-center gap-3 w-full md:w-auto flex-wrap">
+                                                    {/* MP4 Download */}
+                                                    <a 
+                                                        href={getDownloadUrl('mp4')} 
+                                                        download
+                                                        className={`px-4 py-2 rounded-md font-bold text-xs md:text-sm flex items-center justify-center gap-2 transition flex-1 md:flex-none shadow-[0_0_15px_rgba(37,99,235,0.4)] ${
+                                                            hasCloudinaryVideo 
+                                                                ? 'bg-blue-600 hover:bg-blue-500 text-white' 
+                                                                : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                                                        }`}
+                                                        onClick={(e) => { if (!hasCloudinaryVideo) e.preventDefault(); }}
                                                     >
-                                                        <option value="vidsrc.net">Server 1 (vidsrc.net)</option>
-                                                        <option value="vidsrc.in">Server 2 (vidsrc.in)</option>
-                                                        <option value="vidsrc.pm">Server 3 (vidsrc.pm)</option>
-                                                        <option value="vidsrc.xyz">Server 4 (vidsrc.xyz)</option>
-                                                    </select>
+                                                        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                                                        MP4
+                                                    </a>
+
+                                                    {/* WebM Download */}
+                                                    <a 
+                                                        href={getDownloadUrl('webm')} 
+                                                        download
+                                                        className={`px-4 py-2 rounded-md font-bold text-xs md:text-sm flex items-center justify-center gap-2 transition flex-1 md:flex-none shadow-[0_0_15px_rgba(132,204,22,0.4)] ${
+                                                            hasCloudinaryVideo 
+                                                                ? 'bg-lime-500 hover:bg-lime-400 text-black' 
+                                                                : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                                                        }`}
+                                                        onClick={(e) => { if (!hasCloudinaryVideo) e.preventDefault(); }}
+                                                    >
+                                                        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                                                        WebM
+                                                    </a>
+
+                                                    {/* IMPORT BUTTON (automatic URL mode) */}
+                                                    <button 
+                                                        onClick={handleImportClick}
+                                                        disabled={isUploading}
+                                                        className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-md font-bold text-xs md:text-sm flex items-center justify-center gap-2 transition flex-1 md:flex-none border border-purple-400/50 hover:border-purple-300 disabled:opacity-50 disabled:cursor-wait"
+                                                        title={uploadMode === 'url' ? "Upload from your server to Cloudinary" : "Upload a local video file"}
+                                                    >
+                                                        {isUploading ? (
+                                                            <>
+                                                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                                                </svg>
+                                                                {uploadProgress}%
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>
+                                                                Import
+                                                            </>
+                                                        )}
+                                                    </button>
+
+                                                    {/* Toggle upload mode */}
+                                                    <button
+                                                        onClick={() => setUploadMode(uploadMode === 'url' ? 'file' : 'url')}
+                                                        className="text-[10px] text-gray-400 underline hover:text-lime-400 transition"
+                                                        title="Switch between URL and file upload"
+                                                    >
+                                                        {uploadMode === 'url' ? '📁 File' : '🌐 URL'}
+                                                    </button>
                                                 </div>
 
-                                                {/* Full Screen Button */}
-                                                <button 
-                                                    onClick={handleFullScreen}
-                                                    className="bg-[#111] border border-[#333] hover:border-lime-400 text-lime-400 flex items-center justify-center gap-1 font-bold text-xs rounded-sm px-3 py-1.5 transition w-full sm:w-auto"
-                                                >
-                                                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"></path></svg>
-                                                    <span className="whitespace-nowrap">Full Screen</span>
-                                                </button>
+                                                {/* Player Utilities */}
+                                                <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+                                                    <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur rounded border border-[#333] px-2 py-1.5 focus-within:border-lime-400 transition">
+                                                        <span className="text-[9px] md:text-xs font-black text-lime-400 uppercase tracking-widest">Sub</span>
+                                                        <select value={subtitleLang} onChange={(e) => setSubtitleLang(e.target.value)} className="bg-transparent text-white font-bold text-xs outline-none custom-bg pr-5 w-[70px] md:w-[90px]">
+                                                            <option className="bg-[#111]" value="en">English</option>
+                                                            {languages.filter(l => l.iso_639_1 !== 'en').map((l, idx) => ( <option key={idx} className="bg-[#111]" value={l.iso_639_1}>{l.english_name || l.name}</option> ))}
+                                                        </select>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur rounded border border-[#333] px-2 py-1.5 focus-within:border-lime-400 transition">
+                                                        <span className="text-[9px] md:text-xs font-black text-lime-400 uppercase tracking-widest">Srv</span>
+                                                        <select value={server} onChange={(e) => setServer(e.target.value)} className="bg-transparent text-white font-bold text-xs outline-none custom-bg pr-5 w-[60px] md:w-[80px]">
+                                                            <option className="bg-[#111]" value="vidsrc.net">Net</option>
+                                                            <option className="bg-[#111]" value="vidsrc.in">In</option>
+                                                            <option className="bg-[#111]" value="vidsrc.pm">Pm</option>
+                                                            <option className="bg-[#111]" value="vidsrc.xyz">Xyz</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <button onClick={handleFullScreen} className="bg-black/60 hover:bg-lime-400 hover:text-black text-lime-400 backdrop-blur border border-[#333] hover:border-lime-400 rounded p-1.5 transition ml-1 shrink-0" title="Full Screen">
+                                                        <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l-5-5m11 5v-4m0 4h-4m4 0l-5-5"></path></svg>
+                                                    </button>
+                                                </div>
                                             </div>
 
+                                            {/* Upload status messages */}
+                                            {uploadError && (
+                                                <div className="text-red-400 text-xs font-bold bg-red-900/30 rounded p-2 border border-red-800">
+                                                    ⚠ {uploadError}
+                                                </div>
+                                            )}
+                                            {hasCloudinaryVideo && !isUploading && !uploadError && (
+                                                <div className="text-lime-400 text-xs font-bold bg-lime-900/30 rounded p-2 border border-lime-800">
+                                                    ✅ Cloud video ready — downloads active
+                                                </div>
+                                            )}
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
 
-                            {/* Details Container */}
-                            <div className="px-5 md:px-10 lg:px-12 py-6 max-w-6xl mx-auto w-full flex-1">
+                            {/* Details Information Panel */}
+                            <div className="px-5 md:px-10 py-6 max-w-6xl mx-auto w-full flex-1">
                                 <h1 className="text-3xl font-black text-white leading-tight mb-2 break-words">
                                     {displayTitle}
                                 </h1>
@@ -529,28 +691,28 @@
                                         )}
                                     </div>
                                     
-                                    <button 
-                                        onClick={() => handleCopy(`Check out ${displayTitle} on EburonFlix!`)} 
-                                        className="bg-[#111] border border-[#333] text-white flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold hover:text-lime-400 transition"
-                                    >
+                                    <button onClick={() => handleCopy(`Check out ${displayTitle} on EburonFlix!`)} className="bg-[#111] border border-[#333] text-white flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold hover:text-lime-400 transition">
                                         {copied ? (
-                                            <span className="text-lime-400 flex items-center gap-1">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                                                Copied!
-                                            </span>
+                                            <span className="text-lime-400 flex items-center gap-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>Copied!</span>
                                         ) : (
-                                            <span className="flex items-center gap-1">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                                                Share / Copy Text
-                                            </span>
+                                            <span className="flex items-center gap-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>Share / Copy Text</span>
                                         )}
                                     </button>
                                 </div>
 
-                                <p className="text-sm text-gray-200 leading-relaxed font-medium mb-8 break-words">
+                                <p className="text-sm text-gray-300 leading-relaxed font-medium mb-8 break-words max-w-4xl">
                                     {displayOverview}
                                 </p>
                             </div>
+
+                            {/* Hidden file input for manual file upload */}
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                onChange={handleFileChange} 
+                                accept="video/*" 
+                                className="hidden" 
+                            />
                         </div>
                     )}
                 </div>
